@@ -51,6 +51,33 @@ namespace Server.Plugins.Relay
             return Task.FromResult(true);
         }
 
+        public Task rpc2Player(RequestContext<IScenePeerClient> ctx)
+        {
+            var destinationId = ctx.ReadObject<long>();
+            return Task.WhenAll(_scene.RemotePeers.ToArray()
+                .Where(p => p.Id == destinationId)
+                .Select(p => p.RpcVoid("relay.rpc", s =>
+                {
+                    ctx.InputStream.Seek(0, System.IO.SeekOrigin.Begin);
+                    ctx.InputStream.CopyTo(s);
+                }))
+                );
+        }
+
+        public Task route2Player(Packet<IScenePeerClient> packet)
+        {
+
+            var reliability = (PacketReliability)packet.Stream.ReadByte();
+            var destinationId = packet.ReadObject<long>();
+
+            _scene.Send(new MatchPeerFilter(destinationId), "relay.route", s =>
+            {
+                packet.Stream.CopyTo(s);
+            }, PacketPriority.MEDIUM_PRIORITY, reliability);
+
+            return Task.FromResult(true);
+        }
+
 
     }
 
